@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/include/spa-0.2/**",
+                "/usr/include/pipewire-0.3/**",
+                "/usr/include/glib-2.0/**",
+                "/usr/include/gio-unix-2.0/**",
+                "/usr/lib64/glib-2.0/include/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++17"
+        }
+    ],
+    "version": 4
+}
