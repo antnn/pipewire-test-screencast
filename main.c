@@ -22,6 +22,9 @@ static GDBusProxy *screencast_proxy = NULL;
 
 #include "sdl.h"
 
+uint32_t pw_stream_node_id;
+int pw_fd;
+
 void start_request_response_signal_handler(GDBusConnection *connection,
 										   const char *sender_name,
 										   const char *object_path,
@@ -370,10 +373,11 @@ uint32_t setup_request_response_signal(const char *object_path,
 		callback, user_data, /*user_data_free_func=*/NULL);
 }
 
-void on_portal_done()
-{
-	
+void process_pipewire(int, uint32_t);
+void on_portal_done(){
+	process_pipewire(pw_fd, pw_stream_node_id);
 }
+
 
 uint32_t start_request_signal_id;
 gchar *start_handle = "";
@@ -430,8 +434,7 @@ void sources_request_response_signal_handler(GDBusConnection *connection,
 	start_request();
 }
 
-uint32_t pw_stream_node_id;
-int pw_fd;
+
 gchar *restore_token = "";
 uint32_t capture_source_type;
 
@@ -745,92 +748,3 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-void process_pipewire(int argc, char *argv[])
-{
-	struct data data = {
-		0,
-	};
-	const struct spa_pod *params[2];
-	uint8_t buffer[1024];
-	struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
-	int res, n_params;
-
-	//pw_init(&argc, &argv);
-
-	/* create a main loop */
-	data.loop = pw_main_loop_new(NULL);
-
-	pw_loop_add_signal(pw_main_loop_get_loop(data.loop), SIGINT, do_quit, &data);
-	pw_loop_add_signal(pw_main_loop_get_loop(data.loop), SIGTERM, do_quit, &data);
-
-	/* create a simple stream, the simple stream manages to core and remote
-	 * objects for you if you don't need to deal with them
-	 *
-	 * If you plan to autoconnect your stream, you need to provide at least
-	 * media, category and role properties
-	 *
-	 * Pass your events and a user_data pointer as the last arguments. This
-	 * will inform you about the stream state. The most important event
-	 * you need to listen to is the process event where you need to consume
-	 * the data provided to you.
-	 */
-	data.stream = pw_stream_new_simple(
-		pw_main_loop_get_loop(data.loop),
-		"video-play-reneg",
-		pw_properties_new(
-			PW_KEY_MEDIA_TYPE, "Video",
-			PW_KEY_MEDIA_CATEGORY, "Capture",
-			PW_KEY_MEDIA_ROLE, "Camera",
-			NULL),
-		&stream_events,
-		&data);
-
-	data.path = argc > 1 ? argv[1] : NULL;
-
-	if (SDL_Init(SDL_INIT_VIDEO) < 0)
-	{
-		fprintf(stderr, "can't initialize SDL: %s\n", SDL_GetError());
-		return -1;
-	}
-
-	if (SDL_CreateWindowAndRenderer(WIDTH, HEIGHT, SDL_WINDOW_RESIZABLE, &data.window, &data.renderer))
-	{
-		fprintf(stderr, "can't create window: %s\n", SDL_GetError());
-		return -1;
-	}
-
-	/* build the extra parameters to connect with. To connect, we can provide
-	 * a list of supported formats.  We use a builder that writes the param
-	 * object to the stack. */
-	n_params = build_format(&data, &b, params);
-
-	/* now connect the stream, we need a direction (input/output),
-	 * an optional target node to connect to, some flags and parameters
-	 */
-	if ((res = pw_stream_connect(data.stream,
-								 PW_DIRECTION_INPUT,
-								 data.path ? (uint32_t)atoi(data.path) : PW_ID_ANY,
-								 PW_STREAM_FLAG_AUTOCONNECT |	 /* try to automatically connect this stream */
-									 PW_STREAM_FLAG_MAP_BUFFERS, /* mmap the buffer data for us */
-								 params, n_params))				 /* extra parameters, see above */
-		< 0)
-	{
-		fprintf(stderr, "can't connect: %s\n", spa_strerror(res));
-		return -1;
-	}
-
-	data.timer = pw_loop_add_timer(pw_main_loop_get_loop(data.loop), on_timeout, &data);
-
-	/* do things until we quit the mainloop */
-	pw_main_loop_run(data.loop);
-
-	pw_stream_destroy(data.stream);
-	pw_main_loop_destroy(data.loop);
-
-	SDL_DestroyTexture(data.texture);
-	if (data.cursor)
-		SDL_DestroyTexture(data.cursor);
-	SDL_DestroyRenderer(data.renderer);
-	SDL_DestroyWindow(data.window);
-	pw_deinit();
-}

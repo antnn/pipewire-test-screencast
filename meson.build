@@ -6,4 +6,4 @@ pipewire_dep = dependency('libpipewire-0.3')
 sdl2_dep = dependency('sdl2')
 
 
-executable('dbusdemo', 'main.c', dependencies: [gio_dep, gio_unix_dep, pipewire_dep,sdl2_dep])
+executable('dbusdemo', ['main.c', 'wire.c'], dependencies: [gio_dep, gio_unix_dep, pipewire_dep,sdl2_dep])
